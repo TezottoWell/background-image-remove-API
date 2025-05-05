@@ -1,7 +1,9 @@
 # gunicorn_config.py
+import os
 
 # Configurações de servidor
-bind = "0.0.0.0:5000"
+port = os.getenv("PORT", "5000")
+bind = f"0.0.0.0:{port}"
 backlog = 2048
 
 # Configurações de worker
