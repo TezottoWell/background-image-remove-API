@@ -28,5 +28,8 @@ RUN mkdir -p uploads processed logs
 # Expor a porta onde a API será executada
 EXPOSE 5000
 
-# Comando para iniciar a aplicação usando gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app"] 
+# Aumentar o limite de memória para o processo
+ENV GUNICORN_CMD_ARGS="--config=gunicorn_config.py"
+
+# Comando para iniciar a aplicação usando gunicorn com configuração
+CMD ["gunicorn", "app:app"] 

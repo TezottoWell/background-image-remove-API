@@ -203,7 +203,7 @@ def remove_background():
         
         # Processar a imagem para remover o fundo
         start_time = time.time()
-        output_image = remove(input_image)
+        output_image = remove(input_image, model_name="u2net_lite")
         processing_time = time.time() - start_time
         
         # Preparar o buffer para enviar a imagem de volta
@@ -308,7 +308,7 @@ def batch_remove_background():
                 
                 # Processar a imagem para remover o fundo
                 logger.info(f"Processando imagem em lote: {file_id}")
-                output_image = remove(input_image)
+                output_image = remove(input_image, model_name="u2net_lite")
                 
                 # Salvar as imagens
                 input_path = os.path.join(UPLOAD_FOLDER, f"{file_id}_input.png")
