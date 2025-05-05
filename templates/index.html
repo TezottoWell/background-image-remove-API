@@ -10,6 +10,15 @@
     <div class="container">
         <h1>Removedor de Fundo de Imagens</h1>
         
+        <!-- Seção para API key -->
+        <div class="api-key-section">
+            <div class="form-group">
+                <label for="api-key" class="form-label">API Key</label>
+                <input type="text" id="api-key" class="form-control" placeholder="Insira sua API key aqui">
+                <small class="text-muted">Necessária para usar a API. Suas requisições serão autenticadas com esta chave.</small>
+            </div>
+        </div>
+        
         <div class="tab-container">
             <div class="tab-buttons">
                 <button class="tab-button active" data-tab="single">Imagem Única</button>
@@ -74,12 +83,40 @@
         </div>
         
         <footer>
-            <p>API de Remoção de Fundo de Imagens usando Flask e rembg</p>
+            <p>API Desenvolvida por <a href="https://github.com/TezottoWell">Wellington Tezotto</a></p>
         </footer>
     </div>
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Salvar e recuperar a API key do localStorage
+            const apiKeyInput = document.getElementById('api-key');
+            
+            // Tentar recuperar a API key salva
+            if (localStorage.getItem('apiKey')) {
+                apiKeyInput.value = localStorage.getItem('apiKey');
+            }
+            
+            // Salvar a API key quando for alterada
+            apiKeyInput.addEventListener('change', () => {
+                localStorage.setItem('apiKey', apiKeyInput.value);
+            });
+            
+            // Função para obter a API key atual
+            function getApiKey() {
+                return document.getElementById('api-key').value.trim();
+            }
+            
+            // Verificar se a API key foi fornecida
+            function validateApiKey() {
+                const apiKey = getApiKey();
+                if (!apiKey) {
+                    alert('Por favor, insira uma API key válida para continuar.');
+                    return false;
+                }
+                return true;
+            }
+            
             // Tab switching
             const tabButtons = document.querySelectorAll('.tab-button');
             const tabContents = document.querySelectorAll('.tab-content');
@@ -150,6 +187,10 @@
             singleForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
+                if (!validateApiKey()) {
+                    return;
+                }
+                
                 if (!fileInput.files.length) {
                     alert('Por favor, selecione uma imagem.');
                     return;
@@ -163,6 +204,9 @@
                 try {
                     const response = await fetch('/remove-background', {
                         method: 'POST',
+                        headers: {
+                            'X-API-Key': getApiKey()
+                        },
                         body: formData
                     });
                     
@@ -230,6 +274,10 @@
             batchForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 
+                if (!validateApiKey()) {
+                    return;
+                }
+                
                 if (!filesInput.files.length) {
                     alert('Por favor, selecione pelo menos uma imagem.');
                     return;
@@ -247,6 +295,9 @@
                 try {
                     const response = await fetch('/batch-remove', {
                         method: 'POST',
+                        headers: {
+                            'X-API-Key': getApiKey()
+                        },
                         body: formData
                     });
                     
@@ -262,11 +313,32 @@
                             
                             item.innerHTML = `
                                 <span>${file.original_name}</span>
-                                <a href="/download/${file.file_id}" download="no_bg_${file.original_name}">Download</a>
+                                <a href="/download/${file.file_id}?api_key=${getApiKey()}" download="no_bg_${file.original_name}">Download</a>
                             `;
                             
                             batchList.appendChild(item);
                         });
+                        
+                        // Mostrar falhas, se houver
+                        if (data.failed_files && data.failed_files.length > 0) {
+                            const failuresTitle = document.createElement('h4');
+                            failuresTitle.textContent = 'Falhas no processamento';
+                            failuresTitle.style.marginTop = '20px';
+                            failuresTitle.style.color = '#dc3545';
+                            batchList.appendChild(failuresTitle);
+                            
+                            data.failed_files.forEach(file => {
+                                const item = document.createElement('div');
+                                item.className = 'batch-item failure';
+                                
+                                item.innerHTML = `
+                                    <span>${file.original_name}</span>
+                                    <span class="error-message">${file.error}</span>
+                                `;
+                                
+                                batchList.appendChild(item);
+                            });
+                        }
                         
                         batchResults.style.display = 'block';
                         

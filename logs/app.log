@@ -1,0 +1,3 @@
+2025-05-04 23:13:58,778 INFO: Iniciando servidor de API para remoção de fundo de imagens [in C:\Users\welli\ReactNative\rm_bg\backend\app.py:417]
+2025-05-04 23:15:37,931 INFO: Processando imagem 1b4413a1-7ed8-4bda-982d-8c9c3121738f - IP: 127.0.0.1 [in C:\Users\welli\ReactNative\rm_bg\backend\app.py:202]
+2025-05-04 23:15:41,485 INFO: Imagem processada com sucesso: 1b4413a1-7ed8-4bda-982d-8c9c3121738f em 3.44s [in C:\Users\welli\ReactNative\rm_bg\backend\app.py:221]
