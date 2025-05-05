@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Removedor de Fundo de Imagens</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Removedor de Fundo de Imagens</h1>
+        
+        <div class="tab-container">
+            <div class="tab-buttons">
+                <button class="tab-button active" data-tab="single">Imagem Única</button>
+                <button class="tab-button" data-tab="batch">Processamento em Lote</button>
+            </div>
+            
+            <div class="tab-content active" id="single-tab">
+                <form id="single-form" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <div class="dropzone" id="dropzone-single">
+                            <p>Arraste e solte uma imagem aqui ou clique para selecionar</p>
+                            <input type="file" id="file-input" class="form-control" accept="image/*" style="display: none;">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Remover Fundo</button>
+                </form>
+                
+                <div class="loading" id="single-loading">
+                    <div class="spinner"></div>
+                    <p>Processando imagem...</p>
+                </div>
+                
+                <div class="preview-container" id="single-preview" style="display: none;">
+                    <div class="preview-box">
+                        <h3>Imagem Original</h3>
+                        <img id="original-preview" class="preview-image">
+                    </div>
+                    <div class="preview-box">
+                        <h3>Imagem Processada</h3>
+                        <img id="processed-preview" class="preview-image">
+                    </div>
+                </div>
+                
+                <div class="result-container" id="single-result" style="display: none;">
+                    <p>Processamento concluído! <a href="#" id="download-link" download>Clique aqui para baixar</a></p>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="batch-tab">
+                <form id="batch-form" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <div class="dropzone" id="dropzone-batch">
+                            <p>Arraste e solte múltiplas imagens aqui ou clique para selecionar</p>
+                            <input type="file" id="files-input" class="form-control" accept="image/*" multiple style="display: none;">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Processar Imagens</button>
+                </form>
+                
+                <div class="loading" id="batch-loading">
+                    <div class="spinner"></div>
+                    <p>Processando imagens...</p>
+                </div>
+                
+                <div class="batch-results" id="batch-results" style="display: none;">
+                    <h3>Imagens Processadas</h3>
+                    <div id="batch-list"></div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>API de Remoção de Fundo de Imagens usando Flask e rembg</p>
+        </footer>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Tab switching
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tabId = button.getAttribute('data-tab');
+                    
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabContents.forEach(tab => tab.classList.remove('active'));
+                    
+                    button.classList.add('active');
+                    document.getElementById(`${tabId}-tab`).classList.add('active');
+                });
+            });
+            
+            // Single image processing
+            const singleForm = document.getElementById('single-form');
+            const fileInput = document.getElementById('file-input');
+            const dropzoneSingle = document.getElementById('dropzone-single');
+            const singleLoading = document.getElementById('single-loading');
+            const singlePreview = document.getElementById('single-preview');
+            const originalPreview = document.getElementById('original-preview');
+            const processedPreview = document.getElementById('processed-preview');
+            const singleResult = document.getElementById('single-result');
+            const downloadLink = document.getElementById('download-link');
+            
+            dropzoneSingle.addEventListener('click', () => {
+                fileInput.click();
+            });
+            
+            dropzoneSingle.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzoneSingle.style.borderColor = '#0d6efd';
+            });
+            
+            dropzoneSingle.addEventListener('dragleave', () => {
+                dropzoneSingle.style.borderColor = '#dee2e6';
+            });
+            
+            dropzoneSingle.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzoneSingle.style.borderColor = '#dee2e6';
+                
+                if (e.dataTransfer.files.length) {
+                    fileInput.files = e.dataTransfer.files;
+                    previewFile(e.dataTransfer.files[0]);
+                }
+            });
+            
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files.length) {
+                    previewFile(fileInput.files[0]);
+                }
+            });
+            
+            function previewFile(file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    originalPreview.src = e.target.result;
+                    singlePreview.style.display = 'flex';
+                    processedPreview.src = '';
+                    singleResult.style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+            
+            singleForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                if (!fileInput.files.length) {
+                    alert('Por favor, selecione uma imagem.');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                singleLoading.style.display = 'block';
+                
+                try {
+                    const response = await fetch('/remove-background', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const objectURL = URL.createObjectURL(blob);
+                        
+                        processedPreview.src = objectURL;
+                        downloadLink.href = objectURL;
+                        downloadLink.download = `no_bg_${Date.now()}.png`;
+                        
+                        singleResult.style.display = 'block';
+                    } else {
+                        const errorData = await response.json();
+                        alert(`Erro: ${errorData.error}`);
+                    }
+                } catch (error) {
+                    alert(`Erro ao processar imagem: ${error.message}`);
+                } finally {
+                    singleLoading.style.display = 'none';
+                }
+            });
+            
+            // Batch processing
+            const batchForm = document.getElementById('batch-form');
+            const filesInput = document.getElementById('files-input');
+            const dropzoneBatch = document.getElementById('dropzone-batch');
+            const batchLoading = document.getElementById('batch-loading');
+            const batchResults = document.getElementById('batch-results');
+            const batchList = document.getElementById('batch-list');
+            
+            dropzoneBatch.addEventListener('click', () => {
+                filesInput.click();
+            });
+            
+            dropzoneBatch.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzoneBatch.style.borderColor = '#0d6efd';
+            });
+            
+            dropzoneBatch.addEventListener('dragleave', () => {
+                dropzoneBatch.style.borderColor = '#dee2e6';
+            });
+            
+            dropzoneBatch.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzoneBatch.style.borderColor = '#dee2e6';
+                
+                if (e.dataTransfer.files.length) {
+                    filesInput.files = e.dataTransfer.files;
+                    updateFileList(e.dataTransfer.files);
+                }
+            });
+            
+            filesInput.addEventListener('change', () => {
+                if (filesInput.files.length) {
+                    updateFileList(filesInput.files);
+                }
+            });
+            
+            function updateFileList(files) {
+                dropzoneBatch.innerHTML = `<p>${files.length} arquivos selecionados</p>`;
+            }
+            
+            batchForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                if (!filesInput.files.length) {
+                    alert('Por favor, selecione pelo menos uma imagem.');
+                    return;
+                }
+                
+                const formData = new FormData();
+                
+                for (let i = 0; i < filesInput.files.length; i++) {
+                    formData.append('files', filesInput.files[i]);
+                }
+                
+                batchLoading.style.display = 'block';
+                batchResults.style.display = 'none';
+                
+                try {
+                    const response = await fetch('/batch-remove', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Display batch results
+                        batchList.innerHTML = '';
+                        
+                        data.files.forEach(file => {
+                            const item = document.createElement('div');
+                            item.className = 'batch-item';
+                            
+                            item.innerHTML = `
+                                <span>${file.original_name}</span>
+                                <a href="/download/${file.file_id}" download="no_bg_${file.original_name}">Download</a>
+                            `;
+                            
+                            batchList.appendChild(item);
+                        });
+                        
+                        batchResults.style.display = 'block';
+                        
+                        // Reset the form
+                        dropzoneBatch.innerHTML = '<p>Arraste e solte múltiplas imagens aqui ou clique para selecionar</p>';
+                        filesInput.value = null;
+                    } else {
+                        const errorData = await response.json();
+                        alert(`Erro: ${errorData.error}`);
+                    }
+                } catch (error) {
+                    alert(`Erro ao processar imagens: ${error.message}`);
+                } finally {
+                    batchLoading.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
