@@ -16,6 +16,27 @@ from werkzeug.utils import secure_filename
 from logging.handlers import RotatingFileHandler
 import json
 from datetime import datetime
+import pkg_resources
+
+# Configuração inicial da remoção de fundo
+rembg_version = pkg_resources.get_distribution("rembg").version
+try:
+    if rembg_version >= "2.0.0":
+        # Para versões mais recentes
+        REMBG_SESSION = remove.new_session("u2net_lite")
+    else:
+        REMBG_SESSION = None
+except Exception as e:
+    logging.error(f"Erro ao inicializar rembg: {str(e)}")
+    REMBG_SESSION = None
+
+# Função auxiliar para processamento de imagem
+def process_image_remove_bg(input_image):
+    """Função auxiliar para remover o fundo de uma imagem usando o modelo mais leve"""
+    if REMBG_SESSION is not None:
+        return remove(input_image, session=REMBG_SESSION)
+    else:
+        return remove(input_image)
 
 # Configuração de logs de segurança
 LOG_FOLDER = 'logs'
@@ -203,7 +224,7 @@ def remove_background():
         
         # Processar a imagem para remover o fundo
         start_time = time.time()
-        output_image = remove(input_image, model_name="u2net_lite")
+        output_image = process_image_remove_bg(input_image)
         processing_time = time.time() - start_time
         
         # Preparar o buffer para enviar a imagem de volta
@@ -308,7 +329,7 @@ def batch_remove_background():
                 
                 # Processar a imagem para remover o fundo
                 logger.info(f"Processando imagem em lote: {file_id}")
-                output_image = remove(input_image, model_name="u2net_lite")
+                output_image = process_image_remove_bg(input_image)
                 
                 # Salvar as imagens
                 input_path = os.path.join(UPLOAD_FOLDER, f"{file_id}_input.png")
