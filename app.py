@@ -21,22 +21,19 @@ import pkg_resources
 # Configuração inicial da remoção de fundo
 rembg_version = pkg_resources.get_distribution("rembg").version
 try:
-    if rembg_version >= "2.0.0":
-        # Para versões mais recentes
-        REMBG_SESSION = remove.new_session("u2net_lite")
-    else:
-        REMBG_SESSION = None
+    # A maioria das versões do rembg usa a função remove diretamente
+    # sem necessidade de inicialização de sessão
+    REMBG_SESSION = None
+    logging.info(f"Rembg inicializado com sucesso (versão {rembg_version})")
 except Exception as e:
     logging.error(f"Erro ao inicializar rembg: {str(e)}")
     REMBG_SESSION = None
 
 # Função auxiliar para processamento de imagem
 def process_image_remove_bg(input_image):
-    """Função auxiliar para remover o fundo de uma imagem usando o modelo mais leve"""
-    if REMBG_SESSION is not None:
-        return remove(input_image, session=REMBG_SESSION)
-    else:
-        return remove(input_image)
+    """Função auxiliar para remover o fundo de uma imagem"""
+    # Usar diretamente a função remove
+    return remove(input_image)
 
 # Configuração de logs de segurança
 LOG_FOLDER = 'logs'
