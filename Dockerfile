@@ -25,10 +25,11 @@ COPY . .
 # Criar diretórios para uploads e imagens processadas
 RUN mkdir -p uploads processed logs
 
-# Expor a porta onde a API será executada
-EXPOSE 5000
+# Porta padrão, pode ser substituída pela variável de ambiente PORT
+ENV PORT=5000
+EXPOSE $PORT
 
-# Aumentar o limite de memória para o processo
+# Configuração do Gunicorn
 ENV GUNICORN_CMD_ARGS="--config=gunicorn_config.py"
 
 # Comando para iniciar a aplicação usando gunicorn com configuração

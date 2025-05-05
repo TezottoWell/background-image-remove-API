@@ -1,0 +1,24 @@
+services:
+  # Serviço de remoção de fundo de imagens
+  - type: web
+    name: background-remove-api
+    env: docker
+    plan: standard
+    scaling:
+      minInstances: 1
+      maxInstances: 1
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: API_KEYS
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+    disks:
+      - name: data
+        mountPath: /app/uploads
+        sizeGB: 1
+      - name: processed
+        mountPath: /app/processed
+        sizeGB: 1
+    healthCheckPath: /health 
