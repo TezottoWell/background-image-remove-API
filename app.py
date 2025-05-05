@@ -29,11 +29,87 @@ except Exception as e:
     logging.error(f"Erro ao inicializar rembg: {str(e)}")
     REMBG_SESSION = None
 
+# Função para limpar arquivos antigos
+def cleanup_old_files(directory, max_age_hours=24):
+    """Remove arquivos mais antigos que max_age_hours do diretório especificado"""
+    try:
+        now = time.time()
+        count = 0
+        
+        for filename in os.listdir(directory):
+            filepath = os.path.join(directory, filename)
+            
+            # Pular diretórios
+            if os.path.isdir(filepath):
+                continue
+                
+            # Verificar idade do arquivo
+            file_age_hours = (now - os.path.getmtime(filepath)) / 3600
+            
+            if file_age_hours > max_age_hours:
+                os.remove(filepath)
+                count += 1
+                
+        if count > 0:
+            logger.info(f"Limpeza de arquivos: {count} arquivos removidos de {directory}")
+    except Exception as e:
+        logger.error(f"Erro na limpeza de arquivos: {str(e)}")
+        
+# Agendador para limpar arquivos periodicamente
+def schedule_cleanup(app):
+    """Configura limpeza periódica de arquivos temporários"""
+    import threading
+    
+    def cleanup_task():
+        with app.app_context():
+            # Limpar arquivos com mais de 24 horas
+            cleanup_old_files(UPLOAD_FOLDER, 24)
+            cleanup_old_files(PROCESSED_FOLDER, 24)
+            
+            # Agendar próxima execução (a cada 1 hora)
+            threading.Timer(3600, cleanup_task).start()
+    
+    # Iniciar a tarefa de limpeza
+    threading.Timer(3600, cleanup_task).start()
+    logger.info("Agendador de limpeza iniciado")
+
 # Função auxiliar para processamento de imagem
 def process_image_remove_bg(input_image):
     """Função auxiliar para remover o fundo de uma imagem"""
-    # Usar diretamente a função remove
-    return remove(input_image)
+    # Redimensionar imagens muito grandes antes de processar
+    max_size = 2000  # Dimensão máxima para processamento
+    orig_width, orig_height = input_image.size
+    
+    # Preservar a proporção original ao redimensionar
+    if orig_width > max_size or orig_height > max_size:
+        scale = min(max_size / orig_width, max_size / orig_height)
+        new_width = int(orig_width * scale)
+        new_height = int(orig_height * scale)
+        
+        # Redimensionar para economizar memória
+        resized_image = input_image.resize((new_width, new_height), Image.LANCZOS)
+        
+        # Liberar memória da imagem original
+        del input_image
+        
+        # Processar a imagem redimensionada
+        output_image = remove(resized_image)
+        
+        # Liberar memória da imagem redimensionada
+        del resized_image
+        
+        # Redimensionar de volta para o tamanho original
+        if orig_width != new_width or orig_height != new_height:
+            output_image = output_image.resize((orig_width, orig_height), Image.LANCZOS)
+    else:
+        # Processar a imagem original
+        output_image = remove(input_image)
+    
+    # Forçar coleta de lixo para liberar memória
+    import gc
+    gc.collect()
+    
+    return output_image
 
 # Configuração de logs de segurança
 LOG_FOLDER = 'logs'
@@ -169,7 +245,7 @@ def health_check():
 
 @app.route('/remove-background', methods=['POST'])
 @require_api_key
-@limiter.limit("30 per minute")
+@limiter.limit("20 per minute")  # Reduzido de 30 para 20
 def remove_background():
     """
     Remove o fundo de uma imagem enviada via POST.
@@ -208,7 +284,7 @@ def remove_background():
         input_image = Image.open(file.stream)
         
         # Limitar o tamanho da imagem para processamento
-        max_dimension = 3000  # Pixels
+        max_dimension = 2500  # Reduzido de 3000 para 2500 pixels
         if input_image.width > max_dimension or input_image.height > max_dimension:
             log_security_event('OVERSIZED_IMAGE', f'Imagem muito grande: {input_image.width}x{input_image.height}')
             return jsonify({"error": f"Imagem muito grande. Dimensão máxima permitida: {max_dimension}px"}), 400
@@ -224,17 +300,27 @@ def remove_background():
         output_image = process_image_remove_bg(input_image)
         processing_time = time.time() - start_time
         
+        # Limpar a memória da imagem de entrada que não é mais necessária
+        del input_image
+        
         # Preparar o buffer para enviar a imagem de volta
         img_byte_arr = io.BytesIO()
-        output_image.save(img_byte_arr, format=input_image.format or 'PNG')
+        output_image.save(img_byte_arr, format='PNG', optimize=True)
         img_byte_arr.seek(0)
         
         # Salvar as imagens (opcional)
         input_path = os.path.join(UPLOAD_FOLDER, f"{file_id}_input.png")
         output_path = os.path.join(PROCESSED_FOLDER, f"{file_id}_output.png")
         
-        input_image.save(input_path)
-        output_image.save(output_path)
+        # Salvar a imagem de saída
+        output_image.save(output_path, optimize=True)
+        
+        # Limpar a memória da imagem de saída
+        del output_image
+        
+        # Forçar a coleta de lixo para liberar memória
+        import gc
+        gc.collect()
         
         logger.info(f"Imagem processada com sucesso: {file_id} em {processing_time:.2f}s")
         
@@ -257,7 +343,7 @@ def remove_background():
 
 @app.route('/batch-remove', methods=['POST'])
 @require_api_key
-@limiter.limit("10 per minute")
+@limiter.limit("5 per minute")  # Reduzido para 5 por minuto
 def batch_remove_background():
     """
     Remove o fundo de múltiplas imagens enviadas via POST.
@@ -279,7 +365,7 @@ def batch_remove_background():
         return jsonify({"error": "Nenhum arquivo selecionado"}), 400
     
     # Limitar o número de arquivos por requisição
-    max_files = 10
+    max_files = 5  # Reduzido de 10 para 5
     if len(files) > max_files:
         log_security_event('BATCH_LIMIT_EXCEEDED', f'Tentativa de processamento em lote com {len(files)} arquivos')
         return jsonify({"error": f"Número máximo de arquivos por requisição: {max_files}"}), 400
@@ -313,7 +399,7 @@ def batch_remove_background():
                 input_image = Image.open(file.stream)
                 
                 # Limitar o tamanho da imagem
-                max_dimension = 3000  # Pixels
+                max_dimension = 2500  # Reduzido de 3000 para 2500 pixels
                 if input_image.width > max_dimension or input_image.height > max_dimension:
                     failed_files.append({
                         "original_name": file.filename,
@@ -329,17 +415,24 @@ def batch_remove_background():
                 output_image = process_image_remove_bg(input_image)
                 
                 # Salvar as imagens
-                input_path = os.path.join(UPLOAD_FOLDER, f"{file_id}_input.png")
                 output_path = os.path.join(PROCESSED_FOLDER, f"{file_id}_output.png")
                 
-                input_image.save(input_path)
-                output_image.save(output_path)
+                # Salvar apenas a saída para economizar espaço
+                output_image.save(output_path, optimize=True)
+                
+                # Limpar memória
+                del input_image
+                del output_image
                 
                 processed_files.append({
                     "file_id": file_id,
                     "original_name": file.filename,
                     "output_path": output_path
                 })
+                
+                # Forçar coleta de lixo após cada processamento
+                import gc
+                gc.collect()
             except Exception as e:
                 failed_files.append({
                     "original_name": file.filename,
@@ -433,4 +526,6 @@ def internal_server_error(e):
 
 if __name__ == '__main__':
     logger.info("Iniciando servidor de API para remoção de fundo de imagens")
+    # Iniciar o agendador de limpeza de arquivos
+    schedule_cleanup(app)
     app.run(debug=False, host='0.0.0.0', port=5000) 
